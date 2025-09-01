@@ -15,6 +15,9 @@ function scrapeWebPageTreeHorizontal() {
     const document = XmlService.parse(cleanHtml);
     const root = document.getRootElement();
 
+    // 不正な & を &amp; に変換（既存の &amp; はそのまま）
+    cleanHtml = cleanHtml.replace(/&(?![a-zA-Z0-9#]+;)/g, "&amp;");
+
     let rows = [];
 
     // 再帰的にツリーを探索し、パスを格納
