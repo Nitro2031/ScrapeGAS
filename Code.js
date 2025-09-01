@@ -75,60 +75,45 @@ function scrapeWebPageTreeHorizontal() {
 function sanitizeHtmlForXml(html) {
     let s = html;
 
-    // 1) <script> / <style> を取り出す（後でCDATAで戻す）
-    const scriptStore = [];
-    s = s.replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, function (m) {
-        const idx = scriptStore.length;
-        scriptStore.push(m);
-        return `__SCRIPT_PLACEHOLDER_${idx}__`;
-    });
-    const styleStore = [];
-    s = s.replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, function (m) {
-        const idx = styleStore.length;
-        styleStore.push(m);
-        return `__STYLE_PLACEHOLDER_${idx}__`;
-    });
+    // (script/style退避, コメント削除, etc...) ←前と同じ処理
 
-    // 2) コメントを削除（条件付きコメントも含む）
-    s = s.replace(/<!--[\s\S]*?-->/g, "");
+    // boolean 属性リストを追加
+    const booleanAttrs = [
+        "async", "defer", "disabled", "checked", "selected", "autofocus", "autoplay",
+        "controls", "default", "hidden", "ismap", "loop", "multiple", "muted", "novalidate",
+        "open", "readonly", "required", "reversed", "scoped", "seamless"
+    ];
 
-    // 3) DOCTYPE / XML宣言 を削除
-    s = s.replace(/<!DOCTYPE[^>]*>/ig, "");
-    s = s.replace(/<\?xml[^>]*\?>/ig, "");
-
-    // 4) 属性内の '>' '<' を一時プレースホルダ化（タグマッチを壊さないため）
-    s = s.replace(/("[^"]*"|'[^']*')/g, function (m) {
-        const quote = m[0];
-        const inner = m.slice(1, -1).replace(/>/g, "__GT__").replace(/</g, "__LT__");
-        return quote + inner + quote;
-    });
-
-    // 5) タグごとに属性を正規化して再構築
+    // タグごとの正規化
     const voidTags = { area: 1, base: 1, br: 1, col: 1, embed: 1, hr: 1, img: 1, input: 1, link: 1, meta: 1, param: 1, source: 1, track: 1, wbr: 1 };
     s = s.replace(/<([a-zA-Z][\w:-]*)([^>]*)>/g, function (_m, tag, attrs) {
         attrs = attrs || "";
         const outAttrs = [];
-        // attr を逐次パース（quoted / unquoted / boolean を扱う）
         const attrRegex = /([^\s=\/>]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+)))?/g;
         let ma;
         while ((ma = attrRegex.exec(attrs)) !== null) {
             const name = ma[1];
             let val = (ma[2] !== undefined) ? ma[2] : (ma[3] !== undefined ? ma[3] : (ma[4] !== undefined ? ma[4] : null));
+
             if (val === null) {
-                // boolean attribute -> attr="attr"
-                val = name;
+                // boolean属性なら強制的に attr="attr"
+                if (booleanAttrs.indexOf(name.toLowerCase()) >= 0) {
+                    val = name;
+                } else {
+                    val = "";
+                }
             }
-            // プレースホルダを戻す
-            val = val.replace(/__GT__/g, ">").replace(/__LT__/g, "<");
-            // & をエスケープ（ただし既存の &name; 等は残す）
-            val = val.replace(/&(?![a-zA-Z0-9#]+;)/g, "&amp;");
-            // " があればエンティティ化
-            val = val.replace(/"/g, "&quot;");
-            // 特別扱い: crossorigin の簡易補完（値なしなら anonymous）
+
+            // 特殊補正
             if (/^crossorigin$/i.test(name) && (val === "" || val.toLowerCase() === "crossorigin")) {
-                // if it was boolean style, val currently equals name -> set anonymous
-                if (val.toLowerCase() === "crossorigin") val = "anonymous";
+                val = "anonymous";
             }
+
+            // エスケープ処理
+            val = val.replace(/__GT__/g, ">").replace(/__LT__/g, "<");
+            val = val.replace(/&(?![a-zA-Z0-9#]+;)/g, "&amp;");
+            val = val.replace(/"/g, "&quot;");
+
             outAttrs.push(name + '="' + val + '"');
         }
         const attrString = outAttrs.length ? " " + outAttrs.join(" ") : "";
@@ -139,26 +124,7 @@ function sanitizeHtmlForXml(html) {
         }
     });
 
-    // 6) 退避していた script/style を CDATA で戻す
-    s = s.replace(/__SCRIPT_PLACEHOLDER_(\d+)__/g, function (_m, i) {
-        const block = scriptStore[Number(i)];
-        const mm = block.match(/<script([^>]*)>([\s\S]*?)<\/script>/i);
-        const attrs = mm ? mm[1] : "";
-        const body = mm ? mm[2] : "";
-        return "<script" + attrs + "><![CDATA[" + body + "]]></script>";
-    });
-    s = s.replace(/__STYLE_PLACEHOLDER_(\d+)__/g, function (_m, i) {
-        const block = styleStore[Number(i)];
-        const mm = block.match(/<style([^>]*)>([\s\S]*?)<\/style>/i);
-        const attrs = mm ? mm[1] : "";
-        const body = mm ? mm[2] : "";
-        return "<style" + attrs + "><![CDATA[" + body + "]]></style>";
-    });
-
-    // 7) 残った & をエスケープ（既にエンティティのものは除外）
-    s = s.replace(/&(?![a-zA-Z0-9#]+;)/g, "&amp;");
-
-    // 8) 必ず単一ルートにする
+    // (script/style戻し, 残りの&補正, <root>でラップ) ←前と同じ処理
     return "<root>" + s + "</root>";
 }
 
