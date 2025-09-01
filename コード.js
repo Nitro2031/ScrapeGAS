@@ -71,3 +71,14 @@ function scrapeWebPageTreeHorizontal() {
     // 出力（A2セルから）
     sheet.getRange(2, 1, data.length, data[0].length).setValues(data);
 }
+
+/**
+ * Google スプレッドシートのメニューに「📦 ScrapeWebPage」というカスタムメニューを追加する関数
+ * @returns {void}
+ */
+function onOpen() {
+    const ui = SpreadsheetApp.getUi();
+    ui.createMenu('📦 ScrapeWebPage')
+        .addItem('GetWebPage', 'scrapeWebPageTreeHorizontal')
+        .addToUi();
+}
