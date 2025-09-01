@@ -11,7 +11,7 @@ function scrapeWebPageTreeHorizontal() {
     const html = response.getContentText();
 
     // <!DOCTYPE> を除去してXmlServiceでパース
-    const cleanHtml = html.replace(/<!DOCTYPE[^>]*>/i, "");
+    let cleanHtml = html.replace(/<!DOCTYPE[^>]*>/i, "");
 
     // 不正な & を &amp; に変換（既存の &amp; はそのまま）
     cleanHtml = cleanHtml.replace(/&(?![a-zA-Z0-9#]+;)/g, "&amp;");
